@@ -1,0 +1,113 @@
+buildscript {
+    ext.gradeProject = "PP1"
+    ext.gradePackage = "edu.xxx"
+    ext.gradeConfig = "config/pp1.yml"
+
+    repositories {
+        maven { url "https://maven-central.storage.googleapis.com" }
+        jcenter()
+        mavenCentral()
+    }
+}
+
+plugins {
+    id 'java'
+    id 'idea'
+    id 'checkstyle'
+    id 'jacoco'
+    id "net.ltgt.errorprone" version "0.7.1" // JDK9+
+    id 'com.github.sherter.google-java-format' version '0.8'
+}
+
+group 'edu.xxx'
+version '1.0'
+
+idea {
+    project {
+        jdkName = '11'
+        languageLevel = JavaVersion.VERSION_11
+        targetBytecodeVersion = JavaVersion.VERSION_11
+    }
+}
+
+allprojects {
+    // Makes the "javadoc" action run without a ton of errors and warnings.
+    tasks.withType(Javadoc) {
+        options.addStringOption('Xdoclint:none', '-quiet')
+    }
+    
+    tasks.withType(JavaCompile) {
+        options.fork = true
+        options.incremental = true
+        options.encoding = "UTF-8"
+
+        options.compilerArgs << "-Xlint:all" << "-Xlint:-serial" << "-Xlint:-processing" << "-Xlint:-deprecation"
+
+        // ErrorProne's "unused" warnings seems to trigger far too often, so we're suppressing them.
+        options.errorprone.errorproneArgs << "-Xep:UnusedVariable:OFF" << "-Xep:UnusedMethod:OFF"
+
+        sourceCompatibility = '11'
+        targetCompatibility = '11'
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// These are gradle actions that lets us launch a JVM for our various different "main" methods.
+// https://docs.gradle.org/current/javadoc/org/gradle/api/tasks/JavaExec.html
+
+// Note that these actions, when run from the command-line, they all seem to do the right thing, and you can kill
+// off your server by typing Control-C. If you run them from IntelliJ, you'll have to hit the red stop-button.
+
+// Launching a Java command with all the right classpath and library arguments is a pain, so it's nice that Gradle
+// will do all the work for us. Also, by saying that these tasks "depend on the classes", that means that Gradle
+// will make sure to recompile anything, if necessary, before going on and starting the Java program.
+
+task runJavaScriptRepl (dependsOn: classes, type: JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    main = "edu.xxx.web.JavaScriptRepl"
+}
+
+googleJavaFormat {
+    toolVersion = '1.7'
+}
+
+checkstyle {
+    toolVersion = '8.23'
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// This section specifies all the external libraries being used by your Java
+// program and where to find them.
+repositories {
+    maven { url "https://maven-central.storage.googleapis.com" }
+    mavenCentral()
+    mavenLocal()
+}
+
+dependencies {
+    compile "io.vavr:vavr:0.10.3"
+
+    errorprone 'com.google.errorprone:error_prone_core:2.3.4'
+
+    implementation('com.sparkjava:spark-core:2.9.1') { // web servers
+        exclude module: 'slf4j-simple' // because we're using logback instead
+    }
+    implementation 'ch.qos.logback:logback-classic:1.2.3' // logging
+    implementation 'com.j2html:j2html:1.4.0' // fluent HTML building
+    implementation 'org.unbescape:unbescape:1.1.6.RELEASE' // string escapes for JSON, Java, etc.
+
+    implementation 'com.beust:jcommander:1.72' // command-line parsing
+
+    // annotations to help ErrorProne and IntelliJ find bugs
+    implementation 'org.jetbrains:annotations:15.0'
+    implementation 'com.google.code.findbugs:jsr305:3.0.2'
+    implementation 'com.google.code.findbugs:annotations:3.0.1'
+    implementation 'com.google.errorprone:error_prone_annotations:2.3.3'
+
+    // testing libraries: these are only visible from our "test" code, not the "main" code
+    testImplementation 'org.mockito:mockito-core:3.0.0' // mock testing library
+    testImplementation 'org.quicktheories:quicktheories:0.26' // high-tech pattern-based testing library
+
+    // JSON builders
+    implementation 'org.json:json:20171018'
+}
